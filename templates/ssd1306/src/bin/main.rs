@@ -10,7 +10,10 @@
 use esp_hal::clock::CpuClock;
 use esp_hal::main;
 use esp_hal::time::{Duration, Instant};
+use core::fmt::Write;
 use log::{error, info};
+use esp_hal::i2c::master::I2c;
+use ssd1306_driver::{prelude::*, I2CDisplayInterface, Ssd1306};
 
 #[panic_handler]
 fn panic(panic_info: &core::panic::PanicInfo) -> ! {
@@ -36,6 +39,14 @@ fn main() -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
+    let i2c = I2c::new(
+        peripherals.I2C0,
+        esp_hal::i2c::master::Config::default(),
+    )
+    .unwrap()
+    .with_sda(peripherals.GPIO1)
+    .with_scl(peripherals.GPIO2);
+
     // The following pins are used to bootstrap the chip. They are available
     // for use, but check the datasheet of the module for more information on them.
     // - GPIO2
@@ -50,8 +61,15 @@ fn main() -> ! {
     let _ = peripherals.GPIO16;
     let _ = peripherals.GPIO17;
 
+    let interface = I2CDisplayInterface::new(i2c);
+    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+        .into_terminal_mode();
+    display.init().unwrap();
+    display.clear().unwrap();
+
     loop {
         info!("Hello world!");
+        display.write_str(unsafe { core::str::from_utf8_unchecked(&[97]) });
         let delay_start = Instant::now();
         while delay_start.elapsed() < Duration::from_millis(1000) {}
     }
