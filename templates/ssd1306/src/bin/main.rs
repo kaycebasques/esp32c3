@@ -11,9 +11,25 @@ use esp_hal::clock::CpuClock;
 use esp_hal::main;
 use esp_hal::time::{Duration, Instant};
 use core::fmt::Write;
-use log::{error, info};
+use log::{error, info, LevelFilter, Log, Metadata, Record};
 use esp_hal::i2c::master::I2c;
 use ssd1306_driver::{prelude::*, I2CDisplayInterface, Ssd1306};
+
+struct CrLfLogger;
+
+impl Log for CrLfLogger {
+    fn enabled(&self, _: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        esp_println::println!("\r{} - {}", record.level(), record.args());
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: CrLfLogger = CrLfLogger;
 
 #[panic_handler]
 fn panic(panic_info: &core::panic::PanicInfo) -> ! {
@@ -34,7 +50,10 @@ fn main() -> ! {
     // generator version: 1.3.0
     // generator parameters: --chip esp32c3 -o esp32c3-wroom-02 -o log -o wokwi -o vscode
 
-    esp_println::logger::init_logger_from_env();
+    unsafe {
+        log::set_logger_racy(&LOGGER).unwrap();
+        log::set_max_level_racy(LevelFilter::Info);
+    }
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
@@ -69,7 +88,7 @@ fn main() -> ! {
 
     loop {
         info!("Hello world!");
-        display.write_str(unsafe { core::str::from_utf8_unchecked(&[97]) });
+        let _ = display.write_str(unsafe { core::str::from_utf8_unchecked(&[97]) });
         let delay_start = Instant::now();
         while delay_start.elapsed() < Duration::from_millis(1000) {}
     }
